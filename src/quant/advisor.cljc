@@ -6,10 +6,14 @@
   membership independently. Modeled on cloud-itonami-isco-4311's
   advisor.
 
-  A proposal: {:op :approve-analysis|:publish-finding
+  A proposal: {:op <one of quant.operation/supported>
                :effect :propose :model-id str :p-value number
                :method str :claim kw :stake kw :confidence n
-               :rationale str}"
+               :rationale str}
+
+  The advisor does not validate. It proposes whatever the request describes,
+  including shapes the governor will refuse — that separation is the point of
+  the pattern, and it is why `infer` must not throw on a malformed request."
   ;; clojure.edn, not clojure.core/read-string: this parses untrusted
   ;; advisor output, and the core reader executes #=(...) at read time.
   (:require [clojure.edn :as edn]))
@@ -24,9 +28,18 @@
    :p-value p-value
    :method method
    :claim claim
-   :stake (or stake :low)
-   :confidence (case (or stake :low) :high 0.7 :medium 0.85 :low 0.95)
-   :rationale (str "proposed " (name op) " for client " (:client-id request))})
+   :stake (if (contains? #{:high :medium :low} stake) stake :low)
+   :confidence (case (if (contains? #{:high :medium :low} stake) stake :low)
+                 :high 0.7 :medium 0.85 :low 0.95)
+   ;; `pr-str`, not `name`. An advisor must be able to carry a malformed
+   ;; request as far as the governor, which is the only component authorised
+   ;; to refuse it. Measured through the wired graph: `(name op)` on a request
+   ;; with no `:op` threw a NullPointerException inside this function, so the
+   ;; run died at :advise and the governor never produced a verdict at all.
+   ;; A proposal the actor cannot even describe is still a proposal the
+   ;; governor must get to see and hold.
+   :rationale (str "proposed " (pr-str op) " for client "
+                   (pr-str (:client-id request)))})
 
 (defn mock-advisor []
   (reify Advisor
