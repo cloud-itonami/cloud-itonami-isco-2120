@@ -21,7 +21,18 @@
             [langgraph.checkpoint :as cp]
             [quant.advisor :as advisor]
             [quant.governor :as governor]
+            [quant.ledger :as ledger]
+            [quant.phase :as phase]
             [quant.store :as store]))
+
+(defn- append-chained!
+  "Append `m` to the store's ledger as the next CHAINED entry. Reads the
+  current ledger so the new entry commits to both its content and its
+  position; see `quant.ledger` on why an unchained vector could not show that
+  nothing had been dropped or reordered."
+  [store m]
+  (let [e (ledger/entry (vec (store/ledger store)) m)]
+    (store/append-ledger! store e)))
 
 (defn build-graph
   "Build a compiled QuantitativeProfessionalsActor graph. `store` implements
@@ -39,6 +50,7 @@
          :verdict     {:default nil}
          :disposition {:default nil}
          :record      {:default nil}
+         :approved    {:default nil}
          :audit       {:reducer into :default []}}})
       (g/add-node :intake (fn [s] s))
       (g/add-node :advise
@@ -53,24 +65,29 @@
                         :audit [{:node :govern :verdict v}]})))
       (g/add-node :decide
                    (fn [{:keys [verdict]}]
-                     {:disposition (cond
-                                     (:hard? verdict) :hold
-                                     (:escalate? verdict) :request-approval
-                                     :else :commit)}))
-      (g/add-node :request-approval (fn [s] s))
+                     ;; The routing rule lives in `quant.phase` so it has a
+                     ;; name a ledger entry can carry and a test that does not
+                     ;; need a graph. See that namespace on why :hard? is
+                     ;; checked before :escalate?.
+                     {:disposition (phase/of-verdict verdict)}))
+      ;; The interrupt fires before this node, so reaching it at all means a
+      ;; human resumed the thread. `:approved` is what lets the ledger tell a
+      ;; human-approved write from an automatic one.
+      (g/add-node :request-approval (fn [s] (assoc s :approved :human)))
       (g/add-node :commit
-                   (fn [{:keys [request proposal]}]
+                   (fn [{:keys [request proposal approved]}]
                      (let [record {:client-id (:client-id request)
                                     :op (:op proposal)
                                     :model-id (:model-id proposal)
-                                    :payload proposal}]
+                                    :payload proposal}
+                           approved-by (or approved :actor)]
                        (store/commit-record! store record)
-                       (store/append-ledger! store {:disposition :commit :record record})
+                       (append-chained! store (ledger/commit-entry record approved-by))
                        {:record record
-                        :audit [{:node :commit :record record}]})))
+                        :audit [{:node :commit :record record :approved-by approved-by}]})))
       (g/add-node :hold
                    (fn [{:keys [verdict]}]
-                     (store/append-ledger! store {:disposition :hold :verdict verdict})
+                     (append-chained! store (ledger/hold-entry verdict))
                      {:audit [{:node :hold :verdict verdict}]}))
       (g/set-entry-point :intake)
       (g/add-edge :intake :advise)

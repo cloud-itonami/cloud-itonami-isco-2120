@@ -11,6 +11,11 @@
          :main-opts    ["-m" "clj-kondo.main"
                         "--lint" "src" "test"
                         "--fail-level" "error"]}
+  ;; The governed-scenario harness, as a named operation. `run` counts
+  ;; refusals and `-main` exits non-zero when the count is zero, so a
+  ;; scenario table that has stopped exercising the governor is reported as a
+  ;; defect rather than as a pass. See quant.sim.
+  :sim  {:main-opts ["-m" "quant.sim"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd6605cb6c0efc275e1df1736f6e90d4d73"}}
