@@ -58,9 +58,9 @@ rebuilt to prevent.
 ## Running it
 
 ```bash
-clojure -M:test    # 68 tests / 413 assertions
-clojure -M:sim     # 30 scenarios, 27 refusals; exits 1 if the table refuses nothing
-clojure -M:lint
+kbb -M:test    # 68 tests / 413 assertions
+kbb -M:sim     # 30 scenarios, 27 refusals; exits 1 if the table refuses nothing
+kbb -M:lint
 ```
 
 `quant.sim` answers three questions a unit test does not: does the
