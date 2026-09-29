@@ -1,7 +1,7 @@
 (ns quant.governor
   "QuantitativeProfessionalsGovernor — the independent safety/traceability
   layer for the ISCO-08 2120 community mathematicians, actuaries and
-  statisticians actor (itonami actor pattern, ADR-2607011000 / CLAUDE.md
+  statisticians actor (itonami actor pattern, ADR-2607011000 / AGENTS.md
   Actors section).
 
   Statistical twist: a significance claim is an arithmetic comparison against
